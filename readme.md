@@ -33,6 +33,24 @@ The DNS entries must be in the same subdomain.  For example, <subdomain> in belo
 | node1.internal.<subdomain> IN A <master node private IP>    | Node1 private hostname                                            |
 | node2.internal.<subdomain> IN A <master node private IP>    | Node2 private hostname                                            |
 
+# SSL Certificates
+
+The ansible inventory file will require an SSL Server Certificate in the working directory :
+* server-cert.pem - The Server certificate chain
+* server-cert.key - The unencrypted private key
+* ca.crt - The CA that signed the certificate
+
+You can use these utils to create a CA, and then have your own certificate signed :
+* [Scripts that creates a CA and sign certificate requests](https://github.com/dickeyf/cert-ca)
+* [Scripts that creates server and client certificate requests](https://github.com/dickeyf/cert-requests)
+
+You will have to start with cert-ca, and follow the instructions to create the CA.
+Then, you will need to create a server certificate request using cert-request.  You will need to specify SANs for :
+* Each hostnames which will be publicly accessible
+* For all DNS wildcards which will be publicly accessible HTTP routes.
+
+Once the request is created, follow the instructions to sign it.
+
 # Instructions
 
 ## Checkout this repository
