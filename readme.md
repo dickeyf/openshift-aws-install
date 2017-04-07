@@ -56,8 +56,8 @@ Once the request is created, follow the instructions to sign it.
 ## Checkout this repository
 
 ```
-git clone https://github.com/SolaceDev/openshift-VMR-howto.git
-cd openshift-VMR-howto/openshift-install
+git clone https://github.com/dickeyf/openshift-aws-install.git
+cd openshift-aws-install
 ```
 
 ## Preparing the hosts for Openshift Installation
@@ -69,6 +69,7 @@ these steps :
 * Only activate the repositories for Openshift Enterprise
 * Install the required RPMs
 * Setup Docker storage backend to use the EBS block device
+* Docker-Machine installed on your developer workstation (If you need to push docker images)
 
 Before proceeding, you will have to copy the AWS host's ssh private to this directory in a filename named `id_rsa`.
 This will allow the scripts to login on the hosts.
@@ -104,3 +105,62 @@ master node and execute the Ansible playbook to install Openshift on all nodes.
 You should see Ansible making progress installing Openshift.
 
 Once this is complete you should be able to connect to the web console at : `https://<master node hostname>:8443`
+however you won't be able to login until users are created.
+
+## Creating users and the admin user
+
+To create the users you will need to ssh into the master node, and add the users in htpasswd format.
+
+Start by creating the admin user and giving cluster admin privileges:
+```
+ssh -i id_rsa ec2-user@<masternode>
+sudo -i
+cd /etc/origin/master
+htpasswd htpasswd admin
+oadm policy add-cluster-role-to-user admin admin
+```
+
+Then, you can add each users with additional htpasswd invocations :
+
+```
+htpasswd htpasswd <new-user>
+```
+
+## Using Docker-machine to push docker images to your Openshift environment
+
+If you would like to use Docker images which are not hosted on a Docker repository, then you will need Docker-Machine
+to create a Docker host which can load docker image and push them to your Openshift project.
+
+```
+docker-machine create --driver virtualbox --engine-insecure-registry docker-registry-default.<subdomain> default
+```
+
+This will create a Virtual Box VM running docker on a Linux host.  This Docker engine will have been configured to not
+validate SSL certificate for the docker-registry-default.<subdomain> host.  Unless you setup SSL termination behind the
+Openshift router, not validating that SSL Certificate will be necessary.
+
+Once the Docker host is created and ready, you can now load the environment variables necessary for the Docker Client :
+```
+eval $(docker-machine env default)
+```
+
+You can now load an image, and push it to an Openshift project like so :
+
+```
+# First login to Openshift if you aren't already.
+oc login <subdomain>:8443 --username=<user> --password=<password>
+# Login Docker to Openshift's repository, using your username, and token (returned by "oc whoami -t")
+docker login docker-registry-default.<subdomain> --username=<user> --password=`oc whoami -t`
+docker load -i <docker-image>.tgz
+# Assuming the docker image is named <image> and have the tag <tag>, the following command will create a tag
+# with a repository reference:
+docker tag <image>:<tag> docker-registry-default.<subdomain>/<project-name>/<image>:<tag>
+# This tagged image can now be pushed
+docker push docker-registry-default.<subdomain>/<project-name>/<image>:<tag>
+```
+
+## Running a demonstration application on your new environment
+
+At this point, your environment is ready to be used.
+
+This project can be used as an example : [Quickstart guide to use Solace's VMR in Openshift](https://github.com/SolaceLabs/solace-openshift-quickstart)
